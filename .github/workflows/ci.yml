@@ -14,6 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: check space pre
+        run: df -h
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -34,6 +37,9 @@ jobs:
             echo "PLUMED_KERNEL=${{ steps.plumed.outputs.plumed_prefix }}/lib/libplumedKernel.so" >> $GITHUB_ENV
           fi
 
+      - name: check space install
+        run: df -h
+      
       - name: Run test suite
         env:
           # show timings of tests
@@ -45,6 +51,9 @@ jobs:
           uv sync --extra mattersim --extra fairchem --extra sevennet --extra nequip --extra d3
           uv pip install --reinstall pynvml
           uv pip install fairchem-core[torch-extras] --no-build-isolation
+
+      - name: check space e3nn                                                
+        run: df -h   
 
       - name: Run test suite for updated e3nn dependencies
         env:
