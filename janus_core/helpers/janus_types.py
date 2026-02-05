@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from enum import Enum
+from functools import cached_property
 import logging
 from pathlib import Path, PurePath
 from typing import IO, TYPE_CHECKING, Literal, TypedDict, TypeVar
@@ -24,6 +25,102 @@ MaybeSequence = T | Sequence[T]
 PathLike = str | Path
 StartStopStep = tuple[int | None, int | None, int]
 SliceLike = slice | range | int | StartStopStep
+
+
+class FloatRange:
+    """
+    A range of float values defined by a start, stop (inclusive), and step.
+
+    Parameters
+    ----------
+    start
+        The starting  value.
+    stop
+        The ending value.
+    step
+        The increment between values.
+    """
+
+    def __init__(self, start: float, stop: float, step: float):
+        """
+        Create a range of float values defined by a start, stop, and step.
+
+        Parameters
+        ----------
+        start
+            The starting  value.
+        stop
+            The ending value.
+        step
+            The increment between values.
+        """
+        if any(x is None for x in [start, stop, step]):
+            raise ValueError("Start, stop, and step cannot be None.")
+        self._start = start
+        self._stop = stop
+        self._step = step
+
+    @property
+    def start(self) -> float:
+        """
+        The starting of the range.
+
+        Returns
+        -------
+        float
+            The starting value.
+        """
+        return self._start
+
+    @property
+    def stop(self) -> float:
+        """
+        The end of the range.
+
+        Returns
+        -------
+        float
+            The final value.
+        """
+        return self._stop
+
+    @property
+    def step(self) -> float:
+        """
+        The step of the range.
+
+        Returns
+        -------
+        float
+            The range's step.
+        """
+        return self._step
+
+    @cached_property
+    def length(self) -> int:
+        """
+        The length of the range.
+
+        Returns
+        -------
+        int
+            The range's length.
+        """
+        return int(1 + abs(self.stop - self.start) // self.step)
+
+    @cached_property
+    def values(self) -> list[float]:
+        """
+        The values of the range.
+
+        Returns
+        -------
+        list[float]
+            The values of the range..
+        """
+        sign = 1 if (self.stop - self.start) > 0 else -1
+        return [self.start + sign * i * self.step for i in range(self.length)]
+
 
 # ASE Arg types
 

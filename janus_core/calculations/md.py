@@ -39,6 +39,7 @@ from janus_core.helpers.janus_types import (
     CorrelationKwargs,
     Devices,
     Ensembles,
+    FloatRange,
     OutputKwargs,
     PathLike,
     PostProcessKwargs,
@@ -143,13 +144,9 @@ class MolecularDynamics(BaseCalculation):
         Step to start saving trajectory. Default is 0.
     traj_every
         Frequency of steps to save trajectory. Default is 100.
-    temp_start
-        Temperature to start heating, in K. Default is None, which disables heating.
-    temp_end
-        Maximum temperature for heating, in K. Default is None, which disables heating.
-    temp_step
-        Size of temperature steps when heating, in K. Default is None, which disables
-        heating.
+    temp_ramp
+        Temperature heating/cooling range, in K. Default is None,
+        which disables heating.
     temp_time
         Time between heating steps, in fs. Default is None, which disables heating.
     write_kwargs
@@ -225,9 +222,7 @@ class MolecularDynamics(BaseCalculation):
         traj_append: bool = False,
         traj_start: int = 0,
         traj_every: int = 100,
-        temp_start: float | None = None,
-        temp_end: float | None = None,
-        temp_step: float | None = None,
+        temp_ramp: FloatRange | None = None,
         temp_time: float | None = None,
         write_kwargs: OutputKwargs | None = None,
         post_process_kwargs: PostProcessKwargs | None = None,
@@ -321,15 +316,9 @@ class MolecularDynamics(BaseCalculation):
             Step to start saving trajectory. Default is 0.
         traj_every
             Frequency of steps to save trajectory. Default is 100.
-        temp_start
-            Temperature to start heating, in K. Default is None, which disables
-            heating.
-        temp_end
-            Maximum temperature for heating, in K. Default is None, which disables
-            heating.
-        temp_step
-            Size of temperature steps when heating, in K. Default is None, which
-            disables heating.
+        temp_ramp
+            Temperature heating/cooling range, in K. Default is None,
+            which disables heating.
         temp_time
             Time between heating steps, in fs. Default is None, which disables heating.
         write_kwargs
@@ -392,9 +381,7 @@ class MolecularDynamics(BaseCalculation):
         self.traj_append = traj_append
         self.traj_start = traj_start
         self.traj_every = traj_every
-        self.temp_start = temp_start
-        self.temp_end = temp_end
-        self.temp_step = temp_step
+        self.temp_ramp = temp_ramp
         self.temp_time = temp_time * units.fs if temp_time else None
         self.write_kwargs = write_kwargs
         self.post_process_kwargs = post_process_kwargs
@@ -407,10 +394,6 @@ class MolecularDynamics(BaseCalculation):
 
         if "append" in self.write_kwargs:
             raise ValueError("`append` cannot be specified when writing files")
-
-        # Check temperatures for heating differ
-        if self.temp_start is not None and self.temp_start == self.temp_end:
-            raise ValueError("Start and end temperatures must be different")
 
         # Warn if attempting to rescale/minimize during dynamics
         # but equil_steps is too low
@@ -429,32 +412,18 @@ class MolecularDynamics(BaseCalculation):
                 stacklevel=2,
             )
 
-        # Warn if mix of None and not None
-        self.ramp_temp = (
-            self.temp_start is not None
-            and self.temp_end is not None
-            and self.temp_step
-            and self.temp_time
-        )
-        if (
-            self.temp_start is not None
-            or self.temp_end is not None
-            or self.temp_step
-            or self.temp_time
-        ) and not self.ramp_temp:
-            warn(
-                "`temp_start`, `temp_end` and `temp_step` must all be specified for "
-                "heating to run",
-                stacklevel=2,
-            )
-        if self.ramp_temp:
+        if self.temp_ramp:
+            # Check temperatures for heating differ
+            if self.temp_ramp.start == self.temp_ramp.stop:
+                raise ValueError("Start and end temperatures must be different")
+
             if self.ensemble in ("nve", "nph"):
                 raise ValueError(
                     "Temperature ramp requested for ensemble with no thermostat"
                 )
 
             # Validate start and end temperatures
-            if self.temp_start < 0 or self.temp_end < 0:
+            if self.temp_ramp.start < 0 or self.temp_ramp.stop < 0:
                 raise ValueError("Start and end temperatures must be positive")
 
             if self.temp_time < self.timestep:
@@ -597,11 +566,7 @@ class MolecularDynamics(BaseCalculation):
         list[float]
             Temperatures in heating/cooling ramp.
         """
-        ramp_sign = 1 if (self.temp_end - self.temp_start) > 0 else -1
-        ramp_temps = [
-            self.temp_start + ramp_sign * i * self.temp_step
-            for i in range(self.heating_n_temps)
-        ]
+        ramp_temps = self.temp_ramp.values
 
         if self.restart:
             ramp_steps_completed = self.offset // self.heating_steps_per_temp
@@ -611,7 +576,6 @@ class MolecularDynamics(BaseCalculation):
                 # We have to account for that step manually.
                 ramp_steps_completed += 1
             ramp_temps = ramp_temps[ramp_steps_completed:]
-
         return ramp_temps
 
     @property
@@ -626,7 +590,7 @@ class MolecularDynamics(BaseCalculation):
         """
         # Always include start temperature in ramp, and include end temperature
         # if separated by an integer number of temperature steps
-        return int(1 + abs(self.temp_end - self.temp_start) // self.temp_step)
+        return self.temp_ramp.length if self.temp_ramp else 0
 
     @property
     def heating_steps_per_temp(self) -> int:
@@ -652,12 +616,12 @@ class MolecularDynamics(BaseCalculation):
         """
         total_steps = self.steps
 
-        if self.ramp_temp:
+        if self.temp_ramp:
             total_steps += self.heating_n_temps * self.heating_steps_per_temp
             # Heating steps at 0 K are skipped
-            if np.isclose(self.temp_start, 0.0):
+            if np.isclose(self.temp_ramp.start, 0.0):
                 total_steps -= self.heating_steps_per_temp
-            if np.isclose(self.temp_end, 0.0):
+            if np.isclose(self.temp_ramp.stop, 0.0):
                 total_steps -= self.heating_steps_per_temp
 
         return total_steps
@@ -1409,15 +1373,15 @@ class MolecularDynamics(BaseCalculation):
         """Run dynamics and/or temperature ramp."""
         # Store temperature for final MD
         md_temp = self.temp
-        if self.ramp_temp:
-            self.temp = self.temp_start
+        if self.temp_ramp:
+            self.temp = self.temp_ramp.start
 
         # Set velocities to match current temperature
         if not self.restart:
             self._set_velocity_distribution()
 
         # Run temperature ramp
-        if self.ramp_temp:
+        if self.temp_ramp:
             if self.logger and not np.isclose(self.temp_time % self.timestep, 0.0):
                 rounded_temp_step = (
                     self.heating_steps_per_temp * self.timestep / units.fs

@@ -12,6 +12,7 @@ import pytest
 
 from janus_core.calculations.md import NPH, NPT, NVE, NVT, NVT_CSVR, NVT_NH
 from janus_core.calculations.single_point import SinglePoint
+from janus_core.helpers.janus_types import FloatRange
 from janus_core.helpers.mlip_calculators import choose_calculator
 from janus_core.helpers.stats import Stats
 from tests.utils import assert_log_contains, chdir
@@ -689,9 +690,7 @@ def test_heating(tmp_path, capsys, ensemble):
         traj_every=10,
         stats_every=10,
         file_prefix=file_prefix,
-        temp_start=0.0,
-        temp_end=20.0,
-        temp_step=20,
+        temp_ramp=FloatRange(0.0, 20.0, 20.0),
         temp_time=2,
         log_kwargs={"filename": log_file},
         enable_progress_bar=True,
@@ -732,9 +731,7 @@ def test_no_thermostat_heating(tmp_path, ensemble):
             traj_every=10,
             stats_every=10,
             file_prefix=file_prefix,
-            temp_start=0.0,
-            temp_end=20.0,
-            temp_step=20,
+            temp_ramp=FloatRange(0.0, 20.0, 20.0),
             temp_time=0.5,
             log_kwargs={"filename": log_file},
         )
@@ -757,9 +754,7 @@ def test_noramp_heating(tmp_path, ensemble):
         ensemble(
             struct=single_point.struct,
             file_prefix=file_prefix,
-            temp_start=10,
-            temp_end=10,
-            temp_step=20,
+            temp_ramp=FloatRange(10.0, 10.0, 20.0),
         )
 
 
@@ -782,9 +777,7 @@ def test_heating_md(tmp_path, capsys, ensemble):
         traj_every=100,
         stats_every=2,
         file_prefix=file_prefix,
-        temp_start=10,
-        temp_end=20,
-        temp_step=10,
+        temp_ramp=FloatRange(10.0, 20.0, 10.0),
         temp_time=2,
         log_kwargs={"filename": log_file},
         enable_progress_bar=True,
@@ -842,9 +835,7 @@ def test_heating_restart(tmp_path, capsys):
         traj_every=100,
         stats_every=1,
         file_prefix=file_prefix,
-        temp_start=0,
-        temp_end=30,
-        temp_step=10,
+        temp_ramp=FloatRange(0.0, 30.0, 10.0),
         temp_time=2,
         restart=True,
         enable_progress_bar=True,
@@ -881,9 +872,7 @@ def test_heating_files(tmp_path):
             steps=0,
             traj_every=2,
             stats_every=2,
-            temp_start=10,
-            temp_end=20,
-            temp_step=10,
+            temp_ramp=FloatRange(10.0, 20.0, 10.0),
             temp_time=2,
         )
 
@@ -922,9 +911,7 @@ def test_heating_md_files(tmp_path):
             steps=2,
             traj_every=100,
             stats_every=2,
-            temp_start=10,
-            temp_end=20,
-            temp_step=10,
+            temp_ramp=FloatRange(10.0, 20.0, 10.0),
             temp_time=2,
         )
 
@@ -958,18 +945,14 @@ def test_ramp_negative(tmp_path):
         NVT(
             struct=single_point.struct,
             file_prefix=file_prefix,
-            temp_start=-5,
-            temp_end=10,
-            temp_step=20,
+            temp_ramp=FloatRange(-5.0, 10.0, 20.0),
             temp_time=10,
         )
     with pytest.raises(ValueError):
         NVT(
             struct=single_point.struct,
             file_prefix=file_prefix,
-            temp_start=5,
-            temp_end=-5,
-            temp_step=20,
+            temp_ramp=FloatRange(5.0, -5.0, 20.0),
             temp_time=10,
         )
 
@@ -994,9 +977,7 @@ def test_cooling(tmp_path, capsys):
         traj_every=10,
         stats_every=1,
         file_prefix=file_prefix,
-        temp_start=20.0,
-        temp_end=0.0,
-        temp_step=10,
+        temp_ramp=FloatRange(20.0, 0.0, 10.0),
         temp_time=1,
         log_kwargs={"filename": log_file},
         enable_progress_bar=True,
@@ -1042,9 +1023,7 @@ def test_heating_too_short(tmp_path):
             traj_every=10,
             stats_every=10,
             file_prefix=file_prefix,
-            temp_start=0.0,
-            temp_end=20.0,
-            temp_step=20,
+            temp_ramp=FloatRange(0.0, 20.0, 20.0),
             temp_time=0.5,
         )
         nvt.run()

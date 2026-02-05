@@ -30,7 +30,7 @@ from janus_core.cli.types import (
     WriteKwargs,
 )
 from janus_core.cli.utils import parse_correlation_kwargs, yaml_converter_callback
-from janus_core.helpers.janus_types import Ensembles
+from janus_core.helpers.janus_types import Ensembles, FloatRange
 
 app = Typer()
 
@@ -636,9 +636,7 @@ def md(
         "traj_append": traj_append,
         "traj_start": traj_start,
         "traj_every": traj_every,
-        "temp_start": temp_start,
-        "temp_end": temp_end,
-        "temp_step": temp_step,
+        "temp_ramp": FloatRange(temp_start, temp_end, temp_step),
         "temp_time": temp_time,
         "write_kwargs": write_kwargs,
         "post_process_kwargs": post_process_kwargs,
